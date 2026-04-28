@@ -1,0 +1,21 @@
+# Overlay for local development: bind mount source, Streamlit auto-rerun on save.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# With Redis (LangGraph checkpointing prep):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile with-redis up --build
+#   Set in .env: REDIS_URL=redis://redis:6379/0  LANGGRAPH_CHECKPOINTER_BACKEND=redis
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    volumes:
+      # Bind mount for live code edits; Python deps come from the image venv at /opt/venv (not under /app).
+      - .:/app:cached
+    environment:
+      STREAMLIT_SERVER_RUN_ON_SAVE: "true"
+      STREAMLIT_SERVER_FILE_WATCHER_TYPE: "auto"
+    # Dev-friendly: recreate on image changes; drop `restart: unless-stopped` from feeling sticky during debug
+    restart: "no"

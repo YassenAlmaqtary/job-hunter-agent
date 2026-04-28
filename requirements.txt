@@ -1,0 +1,17 @@
+langgraph
+langchain
+langchain-community
+langchain-openai
+langchain-google-genai
+langchain-groq
+tavily-python
+pydantic
+fastapi
+uvicorn
+streamlit
+python-dotenv
+pypdf>=5.0.0
+pytest
+# Redis checkpointing (uncomment when wiring LangGraph Redis saver):
+# langgraph-checkpoint-redis
+# redis[hiredis]>=5.0.0
