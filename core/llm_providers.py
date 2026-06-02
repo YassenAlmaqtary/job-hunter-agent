@@ -84,21 +84,21 @@ def _build_groq(model: str, temperature: float) -> BaseChatModel:
 # EN: Append new providers here only — UI reads this dict.
 # AR: لإضافة مزود جديد: انسخ نمطاً وأضف دالة build_* ثم سجّلها هنا.
 LLM_PROVIDERS: dict[str, LLMProviderSpec] = {
-    "openai": LLMProviderSpec(
-        id="openai",
-        label_ar="OpenAI (ChatGPT)",
-        label_en="OpenAI (ChatGPT)",
-        default_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini",
-        suggested_models=(
-            "gpt-4o-mini",
-            "gpt-4o",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-            "o4-mini",
-        ),
-        env_keys=("OPENAI_API_KEY",),
-        build=_build_openai,
-    ),
+    # "openai": LLMProviderSpec(
+    #     id="openai",
+    #     label_ar="OpenAI (ChatGPT)",
+    #     label_en="OpenAI (ChatGPT)",
+    #     default_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini",
+    #     suggested_models=(
+    #         "gpt-4o-mini",
+    #         "gpt-4o",
+    #         "gpt-4.1",
+    #         "gpt-4.1-mini",
+    #         "o4-mini",
+    #     ),
+    #     env_keys=("OPENAI_API_KEY",),
+    #     build=_build_openai,
+    # ),
     "gemini": LLMProviderSpec(
         id="gemini",
         label_ar="Google Gemini",
@@ -112,15 +112,15 @@ LLM_PROVIDERS: dict[str, LLMProviderSpec] = {
         env_keys=("GOOGLE_API_KEY", "GEMINI_API_KEY"),
         build=_build_gemini,
     ),
-    "grok": LLMProviderSpec(
-        id="grok",
-        label_ar="xAI Grok",
-        label_en="xAI Grok",
-        default_model=os.getenv("XAI_MODEL", "grok-2-latest").strip() or "grok-2-latest",
-        suggested_models=("grok-2-latest", "grok-3-latest", "grok-3-mini-fast"),
-        env_keys=("XAI_API_KEY",),
-        build=_build_grok,
-    ),
+    # "grok": LLMProviderSpec(
+    #     id="grok",
+    #     label_ar="xAI Grok",
+    #     label_en="xAI Grok",
+    #     default_model=os.getenv("XAI_MODEL", "grok-2-latest").strip() or "grok-2-latest",
+    #     suggested_models=("grok-2-latest", "grok-3-latest", "grok-3-mini-fast"),
+    #     env_keys=("XAI_API_KEY",),
+    #     build=_build_grok,
+    # ),
     
     "groq": LLMProviderSpec(
         id="groq",
