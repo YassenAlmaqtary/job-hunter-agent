@@ -32,6 +32,8 @@ services:
       # Redis checkpointing: leave empty for memory; use redis://redis:6379/0 with --profile with-redis
       REDIS_URL: ${REDIS_URL:-}
       LANGGRAPH_CHECKPOINTER_BACKEND: ${LANGGRAPH_CHECKPOINTER_BACKEND:-memory}
+    volumes:
+      - feedback_data:/app/.data
     healthcheck:
       test:
         [
@@ -71,4 +73,5 @@ networks:
     driver: bridge
 
 volumes:
+  feedback_data:
   redis_data:
