@@ -165,16 +165,15 @@ def _format_runtime_error(exc: Exception, provider_id: str) -> str:
                 "openai": "OpenAI",
             }.get(provider_id, "المزوّد")
             return (
-                f"تعذر التشغيل عبر {provider_name}: المفتاح غير صالح أو منتهي (401).\n"
-                "- أنشئ مفتاحًا جديدًا من لوحة المزود.\n"
-                "- حدّثه في ملف `.env` بالمتغير الصحيح للمزود.\n"
-                "- أعد تشغيل التطبيق بعد الحفظ."
+                f"تعذر التشغيل عبر {provider_name}: الخدمة غير متاحة حاليًا.\n"
+                "- جرّب مزودًا آخر من القائمة.\n"
+                "- أو أعد المحاولة لاحقًا."
             )
 
         return (
-            "تعذر التشغيل بسبب إعدادات المفتاح.\n"
-            "- تأكد من ضبط مفتاح API الصحيح في ملف `.env` للمزود المختار.\n"
-            "- ثم أعد تشغيل التطبيق."
+            "تعذر التشغيل بسبب مشكلة في إعدادات الخدمة.\n"
+            "- جرّب مزودًا آخر من القائمة.\n"
+            "- أو أعد المحاولة لاحقًا."
         )
 
     return f"فشل التشغيل: {raw}"
@@ -183,7 +182,7 @@ def _format_runtime_error(exc: Exception, provider_id: str) -> str:
 # --- Streamlit layout -------------------------------------------------------
 
 st.title("وكيل البحث عن الوظائف")
-st.caption("مساعد بحث عن عمل — LangGraph · تحسين السيرة وخطاب التقديم (سوق الخليج واليمن)")
+st.caption("مساعد بحث عن عمل — تحسين السيرة وخطاب التقديم (سوق الخليج واليمن)")
 
 # --- Sidebar: LLM provider + secrets + upload -------------------------------
 
@@ -200,17 +199,14 @@ with st.sidebar:
         options=provider_ids,
         index=p_index,
         format_func=lambda x: get_provider(x).label_ar,
-        help="OpenAI (ChatGPT) · Google Gemini · xAI Grok · Groq — المفاتيح من ملف `.env`.",
+        help="OpenAI (ChatGPT) · Google Gemini · xAI Grok · Groq",
     )
     spec = get_provider(provider_id)
-    ok_key, used_env = provider_key_configured(spec)
+    ok_key, _used_env = provider_key_configured(spec)
     if ok_key:
-        st.success(f"مفتاح مفعّل: `{used_env}`")
+        st.success("الخدمة جاهزة للتشغيل")
     else:
-        st.warning(
-            "لم يُعثر على مفتاح لهذا المزود. أضف أحد المتغيرات: "
-            + "، ".join(f"`{k}`" for k in spec.env_keys)
-        )
+        st.warning("خدمة هذا المزود غير متاحة حاليًا. يرجى المحاولة لاحقًا أو اختيار مزود آخر.")
 
     mode = st.radio(
         "اختيار النموذج",
@@ -242,7 +238,7 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "PDF أو TXT",
         type=["pdf", "txt"],
-        help="يُستخرج النص داخل الحاوية دون رفع الملف لخوادم خارجية بخلاف مزود النموذج عند التشغيل.",
+        help="يُستخرج النص محليًا ولا يُشارك مع خوادم خارجية إلا عند تشغيل الوكيل.",
     )
 
     cv_text_local = ""
@@ -254,9 +250,6 @@ with st.sidebar:
             st.error(f"تعذر قراءة الملف: {e}")
     else:
         cv_text_local = ""
-
-    st.divider()
-    st.caption("Docker: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up`")
 
 cv_text = cv_text_local
 
@@ -298,7 +291,7 @@ with st.form("job_hunter_form"):
             height=95,
         )
 
-    with st.expander("Human-in-the-loop (اختياري)"):
+    with st.expander("ملاحظات إضافية (اختياري)"):
         human_feedback = st.text_area(
             "ملاحظات للمراجعة قبل/بعد التوليد",
             placeholder="مثال: أبرز خبرة القطاع الحكومي، وتجنب ذكر راتب صريح في الخطاب.",
@@ -312,7 +305,7 @@ if "graph_thread_id" not in st.session_state:
 
 if run:
     if not provider_key_configured(spec)[0]:
-        st.warning("يرجى ضبط مفتاح API للمزود المختار في ملف `.env`.")
+        st.warning("خدمة المزود المختار غير متاحة حاليًا. يرجى اختيار مزود آخر أو المحاولة لاحقًا.")
     elif not cv_text.strip():
         st.warning("يرجى رفع ملف سيرة ذاتية صالح (PDF أو TXT).")
     elif not job_title.strip() or not location.strip():
@@ -369,7 +362,7 @@ if run:
                 for idx, job in enumerate(top_jobs, start=1):
                     st.markdown(
                         f"**#{idx} {job.get('title','')}** — {job.get('company','')} | "
-                        f"{job.get('location','')} | score: {job.get('match_score', 0)} | source: {job.get('source', 'unknown')}"
+                        f"{job.get('location','')} | نسبة المطابقة: {job.get('match_score', 0)}%"
                     )
                     if job.get("apply_url"):
                         st.markdown(f"[رابط التقديم]({job.get('apply_url')})")
@@ -384,14 +377,14 @@ if run:
             )
             with tab_cv:
                 st.text_area(
-                    "Optimized CV",
+                    "السيرة المحسّنة",
                     value=result.get("optimized_cv", ""),
                     height=420,
                     label_visibility="collapsed",
                 )
             with tab_cl:
                 st.text_area(
-                    "Cover letter",
+                    "خطاب التقديم",
                     value=result.get("cover_letter", ""),
                     height=420,
                     label_visibility="collapsed",
@@ -404,19 +397,19 @@ if run:
                     job = app.get("job", {})
                     st.markdown(
                         f"**{job.get('title','فرصة')}** — {job.get('company','')} "
-                        f"(score: {job.get('match_score', 0)})"
+                        f"(نسبة المطابقة: {job.get('match_score', 0)}%)"
                     )
                     if job.get("apply_url"):
                         st.markdown(f"[التقديم على الوظيفة]({job.get('apply_url')})")
                     if app.get("why_fit"):
                         st.caption(f"سبب المطابقة: {app.get('why_fit')}")
                     st.text_area(
-                        f"CV مخصص - rank {app.get('rank', '')}",
+                        f"سيرة مخصصة — #{app.get('rank', '')}",
                         value=app.get("optimized_cv", ""),
                         height=180,
                     )
                     st.text_area(
-                        f"Cover Letter - rank {app.get('rank', '')}",
+                        f"خطاب تقديم — #{app.get('rank', '')}",
                         value=app.get("cover_letter", ""),
                         height=180,
                     )
@@ -427,8 +420,8 @@ if run:
                     st.info("لا توجد تنبيهات جديدة اليوم.")
                 for item in alerts:
                     st.markdown(
-                        f"- **{item.get('title','')}** @ {item.get('company','')} "
-                        f"({item.get('location','')}) | score: {item.get('match_score', 0)}"
+                        f"- **{item.get('title','')}** — {item.get('company','')} "
+                        f"({item.get('location','')}) | نسبة المطابقة: {item.get('match_score', 0)}%"
                     )
                     if item.get("apply_url"):
                         st.markdown(f"  - [رابط التقديم]({item.get('apply_url')})")
@@ -449,6 +442,6 @@ if run:
                     mime="text/plain",
                 )
             with d3:
-                if st.button("جلسة جديدة (thread_id)", help="للمستقبل: HITL متعدد الخطوات"):
+                if st.button("بدء بحث جديد", help="مسح النتائج الحالية وبدء بحث جديد"):
                     st.session_state["graph_thread_id"] = str(uuid.uuid4())
                     st.rerun()
