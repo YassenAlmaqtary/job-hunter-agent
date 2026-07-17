@@ -1,4 +1,4 @@
-from core.graph import create_job_hunter_graph
+from core.agent.graph import create_job_hunter_graph
 
 
 class DummyLLM:
@@ -14,10 +14,14 @@ def test_graph_flow_with_patched_generation(monkeypatch):
         apps = state.get("generated_applications", [])
         for app in apps:
             app["cover_letter"] = "CL"
-        return {"cover_letter": "CL", "generated_applications": apps, "application_links": ["https://example.com"]}
+        return {
+            "cover_letter": "CL",
+            "generated_applications": apps,
+            "application_links": ["https://example.com"],
+        }
 
-    monkeypatch.setattr("core.graph.cv_optimizer_node", fake_cv)
-    monkeypatch.setattr("core.graph.cover_letter_node", fake_cl)
+    monkeypatch.setattr("core.agent.graph.cv_optimizer_node", fake_cv)
+    monkeypatch.setattr("core.agent.graph.cover_letter_node", fake_cl)
 
     graph = create_job_hunter_graph(DummyLLM())
     result = graph.invoke(

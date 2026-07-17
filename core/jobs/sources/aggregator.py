@@ -3,12 +3,12 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from core.job_sources.arbeitnow import fetch_arbeitnow_jobs
-from core.job_sources.local_seed import local_seed_jobs
-from core.job_sources.remotive import fetch_remotive_jobs
-from core.job_sources.remoteok import fetch_remoteok_jobs
-from core.job_sources.serpapi_jobs import fetch_serpapi_google_jobs
-from core.job_sources.schemas import listing_key, normalize_listing
+from core.jobs.sources.arbeitnow import fetch_arbeitnow_jobs
+from core.jobs.sources.local_seed import local_seed_jobs
+from core.jobs.sources.remotive import fetch_remotive_jobs
+from core.jobs.sources.remoteok import fetch_remoteok_jobs
+from core.jobs.sources.schemas import listing_key, normalize_listing
+from core.jobs.sources.serpapi_jobs import fetch_serpapi_google_jobs
 
 
 # هذا الملف هو نقطة الدمج المركزية لكل مصادر الوظائف.

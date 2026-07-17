@@ -1,0 +1,47 @@
+[
+  {
+    "inputs": {
+      "user_cv_text": "Ahmed Al-Rashid\nSoftware Engineer with 4 years building Python APIs and data pipelines.\nSkills: Python, FastAPI, PostgreSQL, Docker, AWS.\nExperience: Backend Developer at FinTech Co (2021–2025) — REST APIs, CI/CD.\nEducation: BSc Computer Science, King Saud University.",
+      "job_title": "Backend Developer",
+      "location": "Riyadh",
+      "min_salary": "15000 SAR",
+      "experience_level": "3–5 سنوات",
+      "skills": "Python, FastAPI, PostgreSQL, Docker",
+      "target_country": "Saudi Arabia",
+      "job_type": "Full-time",
+      "expected_salary": "18000 SAR",
+      "remote_preference": "Hybrid preferred",
+      "human_feedback": ""
+    }
+  },
+  {
+    "inputs": {
+      "user_cv_text": "Fatima Hassan\nData Analyst | SQL, Power BI, Excel, Python (pandas).\n2 years in retail analytics; dashboards for sales KPIs.\nLanguages: Arabic (native), English (fluent).",
+      "job_title": "Data Analyst",
+      "location": "Dubai",
+      "min_salary": "",
+      "experience_level": "1–3 سنوات",
+      "skills": "SQL, Power BI, Python, Excel",
+      "target_country": "UAE",
+      "job_type": "Any",
+      "expected_salary": "",
+      "remote_preference": "Remote preferred",
+      "human_feedback": "أبرز مهارات التحليل وليس البرمجة الثقيلة."
+    }
+  },
+  {
+    "inputs": {
+      "user_cv_text": "Mohammed Ali\nJunior Full Stack: React, Node.js, MongoDB.\nInternship: built internal HR portal.\nCertifications: AWS Cloud Practitioner.",
+      "job_title": "Full Stack Developer",
+      "location": "Remote",
+      "min_salary": "",
+      "experience_level": "بدون خبرة",
+      "skills": "React, Node.js, MongoDB, JavaScript",
+      "target_country": "",
+      "job_type": "Remote",
+      "expected_salary": "",
+      "remote_preference": "Remote only",
+      "human_feedback": ""
+    }
+  }
+]

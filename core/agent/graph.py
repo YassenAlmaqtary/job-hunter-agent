@@ -1,9 +1,10 @@
 """
 Job Hunter LangGraph definition.
 
-EN: Linear pipeline for now: START → cv_optimizer → cover_letter → END.
-    `MemorySaver` enables thread-scoped memory (HITL / multi-turn later).
-AR: تدفق خطي حالياً؛ الذاكرة مرتبطة بـ thread_id في الإعدادات.
+EN: Linear pipeline:
+    START → job_search → job_match → cv_optimizer → cover_letter → daily_alert → END
+    MemorySaver enables thread-scoped memory (HITL / multi-turn later).
+AR: تدفق خطي؛ الذاكرة مرتبطة بـ thread_id في الإعدادات.
 """
 
 from __future__ import annotations
@@ -14,14 +15,14 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from core.nodes import (
+from core.agent.nodes import (
     cover_letter_node,
     cv_optimizer_node,
     daily_alert_node,
     job_match_node,
     job_search_node,
 )
-from core.state import JobHunterState
+from core.agent.state import JobHunterState
 
 
 def create_job_hunter_graph(llm: BaseChatModel) -> Any:

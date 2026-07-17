@@ -4,11 +4,14 @@ langchain-community
 langchain-openai
 langchain-google-genai
 langchain-groq
+langsmith
 tavily-python
 pydantic
 fastapi
 uvicorn
 streamlit
+psycopg[binary]>=3.2.0
+bcrypt>=4.2.0
 python-dotenv
 pypdf>=5.0.0
 pytest

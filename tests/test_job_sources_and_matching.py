@@ -1,10 +1,10 @@
-from core.job_sources.aggregator import aggregate_job_listings
-from core.matching import score_job_match
+from core.jobs.matching import score_job_match
+from core.jobs.sources.aggregator import aggregate_job_listings
 
 
 def test_aggregate_job_listings_returns_normalized_items(monkeypatch):
     monkeypatch.setattr(
-        "core.job_sources.aggregator.fetch_remoteok_jobs",
+        "core.jobs.sources.aggregator.fetch_remoteok_jobs",
         lambda limit=30: [
             {
                 "id": "1",
@@ -21,9 +21,13 @@ def test_aggregate_job_listings_returns_normalized_items(monkeypatch):
             }
         ],
     )
-    monkeypatch.setattr("core.job_sources.aggregator.fetch_remotive_jobs", lambda query, limit=30: [])
-    monkeypatch.setattr("core.job_sources.aggregator.fetch_arbeitnow_jobs", lambda limit=30: [])
-    monkeypatch.setattr("core.job_sources.aggregator.fetch_serpapi_google_jobs", lambda **kwargs: [])
+    monkeypatch.setattr(
+        "core.jobs.sources.aggregator.fetch_remotive_jobs", lambda query, limit=30: []
+    )
+    monkeypatch.setattr("core.jobs.sources.aggregator.fetch_arbeitnow_jobs", lambda limit=30: [])
+    monkeypatch.setattr(
+        "core.jobs.sources.aggregator.fetch_serpapi_google_jobs", lambda **kwargs: []
+    )
     jobs = aggregate_job_listings(
         job_title="AI Engineer",
         target_country="",

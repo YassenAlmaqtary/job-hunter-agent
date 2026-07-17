@@ -11,12 +11,19 @@ services:
     image: job-hunter-agent:${IMAGE_TAG:-latest}
     container_name: job-hunter-agent-app
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${STREAMLIT_PORT:-8501}:8501"
     env_file:
       - path: .env
         required: false
     environment:
+      # Always use Docker network hostname `postgres` (never localhost from host .env)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-jobhunter}:${POSTGRES_PASSWORD:-jobhunter_secret}@postgres:5432/${POSTGRES_DB:-jobhunter}
+      AUTH_DISABLED: ${AUTH_DISABLED:-false}
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-168}
       # API keys (override via .env)
       DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -26,9 +33,13 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
-      # LangGraph / LangChain
+      # LangSmith observability (traces + eval experiments)
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-job-hunter-agent}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       # Redis checkpointing: leave empty for memory; use redis://redis:6379/0 with --profile with-redis
       REDIS_URL: ${REDIS_URL:-}
       LANGGRAPH_CHECKPOINTER_BACKEND: ${LANGGRAPH_CHECKPOINTER_BACKEND:-memory}
@@ -46,6 +57,26 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
+    networks:
+      - agent-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: job-hunter-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobhunter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jobhunter_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-jobhunter}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jobhunter} -d ${POSTGRES_DB:-jobhunter}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - agent-net
 
@@ -74,4 +105,5 @@ networks:
 
 volumes:
   feedback_data:
+  postgres_data:
   redis_data:

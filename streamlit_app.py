@@ -1,13 +1,21 @@
 """
 Streamlit entrypoint — multipage navigation router.
 
-EN: `page_title` in child pages does not set the sidebar label; use `st.Page(title=...)`.
-AR: اسم الصفحة في الشريط الجانبي يُحدَّد هنا عبر st.navigation.
+EN: Auth gate first, then st.navigation to app pages.
+AR: بوابة المصادقة ثم التنقل بين الصفحات.
 """
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
 import streamlit as st
+
+load_dotenv()
+
+from app.auth_ui import render_auth_gate
+from core.observability import ensure_tracing_env
+
+ensure_tracing_env()
 
 st.set_page_config(
     page_title="وكيل البحث عن الوظائف",
@@ -16,10 +24,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+if not render_auth_gate():
+    st.stop()
+
 page = st.navigation(
     [
-        st.Page("pages/jop_agent_page.py", title="وكيل البحث عن الوظائف", icon="🎯", default=True),
-        st.Page("pages/feed_back_page.py", title="آراء حول الفكرة", icon="💬"),
+        st.Page("app/pages/job_agent_page.py", title="وكيل البحث عن الوظائف", icon="🎯", default=True),
+        st.Page("app/pages/feedback_page.py", title="آراء حول الفكرة", icon="💬"),
     ]
 )
 page.run()

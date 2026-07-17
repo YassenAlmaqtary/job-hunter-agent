@@ -1,4 +1,4 @@
-from core import alerts
+from core.jobs import alerts
 
 
 def test_daily_alert_items_only_new(monkeypatch):

@@ -1,7 +1,7 @@
 """
-صفحة آراء حول الفكرة — وضع التعليقات لجمع ملاحظات الزوار.
+صفحة آراء حول الفكرة — جمع ملاحظات الزوار.
 
-EN: Streamlit multipage view for collecting feedback on the Job Hunter Agent idea.
+EN: Streamlit page for idea feedback; data via ``core.feedback``.
 AR: شارك الرابط مع الآخرين لقراءة آرائهم حول المشروع.
 """
 
@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from core.feedback_store import (
+from core.auth import get_display_name
+from core.feedback import (
     SENTIMENT_LABELS_AR,
     add_comment,
     comment_counts,
@@ -18,7 +19,9 @@ from core.feedback_store import (
 )
 
 st.title("💬 آراء حول الفكرة")
-st.caption("شارك رأيك في Job Hunter Agent — مساعد ذكي لبحث الوظائف وتحسين السيرة وخطاب التقديم")
+st.caption(
+    "شارك رأيك في Job Hunter Agent — مساعد ذكي لبحث الوظائف وتحسين السيرة وخطاب التقديم"
+)
 
 st.markdown(
     """
@@ -50,11 +53,16 @@ with m4:
 
 st.divider()
 
+logged_in_name = get_display_name()
 with st.form("feedback_form", clear_on_submit=True):
     st.subheader("أضف تعليقك")
     c1, c2 = st.columns([1, 2])
     with c1:
-        author = st.text_input("الاسم (اختياري)", placeholder="مثال: أحمد")
+        if logged_in_name:
+            st.text_input("الاسم", value=logged_in_name, disabled=True)
+            author = logged_in_name
+        else:
+            author = st.text_input("الاسم (اختياري)", placeholder="مثال: أحمد")
         sentiment = st.radio(
             "موقفك من الفكرة",
             options=["positive", "neutral", "negative"],

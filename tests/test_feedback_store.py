@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from core.feedback_store import add_comment, comment_counts, load_comments, save_comments
+from core.feedback.store import add_comment, comment_counts, load_comments, save_comments
 
 
 def test_add_and_load_comments(tmp_path: Path):

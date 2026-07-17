@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 
-from core.alerts import build_daily_alert_items
-from core.job_sources import aggregate_job_listings
-from core.matching import score_job_match
+from core.jobs.alerts import build_daily_alert_items
+from core.jobs.matching import score_job_match
+from core.jobs.sources import aggregate_job_listings
 
 
 def main() -> None:

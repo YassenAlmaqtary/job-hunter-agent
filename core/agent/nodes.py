@@ -15,11 +15,11 @@ from langchain_core.messages import AIMessage
 
 from pydantic import BaseModel, Field
 
-from core.alerts import build_daily_alert_items
-from core.job_sources import aggregate_job_listings
-from core.matching import score_job_match
-from core.prompts import build_cover_letter_prompt, build_cv_optimizer_prompt
-from core.state import JobHunterState
+from core.agent.prompts import build_cover_letter_prompt, build_cv_optimizer_prompt
+from core.agent.state import JobHunterState
+from core.jobs.alerts import build_daily_alert_items
+from core.jobs.matching import score_job_match
+from core.jobs.sources import aggregate_job_listings
 
 
 # ---------------------------------------------------------------------------
