@@ -10,11 +10,11 @@ from __future__ import annotations
 import streamlit as st
 
 from core.auth.google_oauth import (
-    OAUTH_STATE_SESSION_KEY,
     build_google_auth_url,
     exchange_code_for_profile,
     google_oauth_configured,
     new_oauth_state,
+    verify_oauth_state,
 )
 from core.auth.service import (
     auth_disabled,
@@ -28,6 +28,16 @@ from core.auth.service import (
     sign_up,
 )
 from core.db.database import database_configured, ensure_schema
+
+
+def _query_param(name: str) -> str | None:
+    value = st.query_params.get(name)
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def render_auth_sidebar() -> None:
@@ -46,10 +56,9 @@ def _handle_google_oauth_callback() -> bool:
     Process ``?code=&state=`` from Google redirect.
     Returns True when a login was completed (caller should rerun).
     """
-    params = st.query_params
-    code = params.get("code")
-    state = params.get("state")
-    error = params.get("error")
+    code = _query_param("code")
+    state = _query_param("state")
+    error = _query_param("error")
 
     if error:
         st.query_params.clear()
@@ -59,15 +68,13 @@ def _handle_google_oauth_callback() -> bool:
     if not code or not state:
         return False
 
-    expected = st.session_state.get(OAUTH_STATE_SESSION_KEY)
     st.query_params.clear()
-    if not expected or state != expected:
-        st.error("جلسة Google غير صالحة. أعد المحاولة.")
+    if not verify_oauth_state(state):
+        st.error("جلسة Google غير صالحة أو انتهت. أعد المحاولة من زر Google.")
         return False
 
-    st.session_state.pop(OAUTH_STATE_SESSION_KEY, None)
     try:
-        profile = exchange_code_for_profile(code=str(code))
+        profile = exchange_code_for_profile(code=code)
         ok, message = sign_in_with_google_profile(
             google_sub=profile["sub"],
             email=profile["email"],
@@ -89,11 +96,8 @@ def _render_google_button() -> None:
         st.caption("تسجيل Google غير مفعّل — أضف مفاتيح OAuth في `.env`.")
         return
 
-    if OAUTH_STATE_SESSION_KEY not in st.session_state:
-        st.session_state[OAUTH_STATE_SESSION_KEY] = new_oauth_state()
-    state = st.session_state[OAUTH_STATE_SESSION_KEY]
     try:
-        auth_url = build_google_auth_url(state=state)
+        auth_url = build_google_auth_url(state=new_oauth_state())
     except Exception as exc:
         st.warning(str(exc))
         return

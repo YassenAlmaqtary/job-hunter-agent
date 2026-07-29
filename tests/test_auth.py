@@ -160,3 +160,13 @@ def test_google_oauth_configured(monkeypatch):
     url = google_oauth.build_google_auth_url(state="abc")
     assert "accounts.google.com" in url
     assert "client_id=cid" in url
+
+
+def test_oauth_state_roundtrip(monkeypatch):
+    from core.auth import google_oauth
+
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-secret")
+    state = google_oauth.new_oauth_state()
+    assert google_oauth.verify_oauth_state(state) is True
+    assert google_oauth.verify_oauth_state("bad.state") is False
+    assert google_oauth.verify_oauth_state(state + "x") is False
