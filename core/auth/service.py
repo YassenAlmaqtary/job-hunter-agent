@@ -54,11 +54,35 @@ def _hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def _verify_password(password: str, password_hash: str) -> bool:
+def _verify_password(password: str, password_hash: str | None) -> bool:
+    if not password_hash:
+        return False
     try:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except ValueError:
         return False
+
+
+def _username_from_google(*, email: str, name: str) -> str:
+    base = (name or "").strip() or email.split("@", 1)[0]
+    cleaned = re.sub(r"[^\w\u0600-\u06FF]", "_", base, flags=re.UNICODE)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    if len(cleaned) < 3:
+        cleaned = "user"
+    return cleaned[:28]
+
+
+def _unique_username(db, preferred: str) -> str:
+    candidate = preferred
+    for i in range(1, 50):
+        if not _USERNAME_RE.fullmatch(candidate):
+            candidate = f"user_{i}"
+        exists = db.scalar(select(User.id).where(User.username == candidate))
+        if not exists:
+            return candidate
+        suffix = f"_{i}"
+        candidate = f"{preferred[: 32 - len(suffix)]}{suffix}"
+    return f"user_{uuid.uuid4().hex[:8]}"
 
 
 def _new_graph_thread_id(user_id: str) -> str:
@@ -295,6 +319,48 @@ def sign_in(*, email: str, password: str) -> tuple[bool, str]:
     _store_browser_session(token=token, user=user_payload, session_row=session_row)
     st.session_state["graph_thread_id"] = session_row["graph_thread_id"]
     return True, "تم تسجيل الدخول بنجاح."
+
+
+def sign_in_with_google_profile(*, google_sub: str, email: str, name: str = "") -> tuple[bool, str]:
+    """Create or reuse a user from a verified Google profile, then open an app session."""
+    email_clean = (email or "").strip().lower()
+    sub_clean = (google_sub or "").strip()
+    if not email_clean or not sub_clean:
+        return False, "بيانات حساب Google غير مكتملة."
+
+    with session_scope() as db:
+        user = db.scalar(select(User).where(User.google_sub == sub_clean))
+        if user is None:
+            user = db.scalar(select(User).where(User.email == email_clean))
+
+        if user is None:
+            preferred = _username_from_google(email=email_clean, name=name)
+            username = _unique_username(db, preferred)
+            user = User(
+                email=email_clean,
+                username=username,
+                password_hash=None,
+                google_sub=sub_clean,
+                auth_provider="google",
+            )
+            db.add(user)
+            db.flush()
+        else:
+            if user.google_sub and user.google_sub != sub_clean:
+                return False, "هذا البريد مرتبط بحساب Google آخر."
+            user.google_sub = sub_clean
+            if user.auth_provider == "password":
+                user.auth_provider = "password+google"
+            elif not user.auth_provider:
+                user.auth_provider = "google"
+            db.flush()
+
+        user_payload = _user_to_dict(user)
+
+    token, session_row = _create_db_session(user_id=str(user_payload["id"]))
+    _store_browser_session(token=token, user=user_payload, session_row=session_row)
+    st.session_state["graph_thread_id"] = session_row["graph_thread_id"]
+    return True, "تم تسجيل الدخول عبر Google."
 
 
 def sign_out() -> None:

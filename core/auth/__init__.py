@@ -16,6 +16,7 @@ from core.auth.service import (  # noqa: F401 — re-export for `from core impor
     require_authenticated_for_agent,
     reset_graph_thread,
     sign_in,
+    sign_in_with_google_profile,
     sign_out,
     sign_up,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "require_authenticated_for_agent",
     "reset_graph_thread",
     "sign_in",
+    "sign_in_with_google_profile",
     "sign_out",
     "sign_up",
 ]

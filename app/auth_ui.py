@@ -1,5 +1,5 @@
 """
-Streamlit auth UI — login, signup, sidebar, and gate.
+Streamlit auth UI — login, signup, Google OAuth, sidebar, and gate.
 
 EN: Presentation only; domain logic stays in ``core.auth.service``.
 AR: واجهة المصادقة فقط؛ المنطق في ``core.auth.service``.
@@ -9,6 +9,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from core.auth.google_oauth import (
+    OAUTH_STATE_SESSION_KEY,
+    build_google_auth_url,
+    exchange_code_for_profile,
+    google_oauth_configured,
+    new_oauth_state,
+)
 from core.auth.service import (
     auth_disabled,
     auth_required,
@@ -16,6 +23,7 @@ from core.auth.service import (
     get_display_name,
     is_authenticated,
     sign_in,
+    sign_in_with_google_profile,
     sign_out,
     sign_up,
 )
@@ -33,9 +41,77 @@ def render_auth_sidebar() -> None:
             st.rerun()
 
 
+def _handle_google_oauth_callback() -> bool:
+    """
+    Process ``?code=&state=`` from Google redirect.
+    Returns True when a login was completed (caller should rerun).
+    """
+    params = st.query_params
+    code = params.get("code")
+    state = params.get("state")
+    error = params.get("error")
+
+    if error:
+        st.query_params.clear()
+        st.error(f"تعذر تسجيل الدخول عبر Google: {error}")
+        return False
+
+    if not code or not state:
+        return False
+
+    expected = st.session_state.get(OAUTH_STATE_SESSION_KEY)
+    st.query_params.clear()
+    if not expected or state != expected:
+        st.error("جلسة Google غير صالحة. أعد المحاولة.")
+        return False
+
+    st.session_state.pop(OAUTH_STATE_SESSION_KEY, None)
+    try:
+        profile = exchange_code_for_profile(code=str(code))
+        ok, message = sign_in_with_google_profile(
+            google_sub=profile["sub"],
+            email=profile["email"],
+            name=profile.get("name", ""),
+        )
+    except Exception as exc:
+        st.error(str(exc))
+        return False
+
+    if ok:
+        st.success(message)
+        return True
+    st.error(message)
+    return False
+
+
+def _render_google_button() -> None:
+    if not google_oauth_configured():
+        st.caption("تسجيل Google غير مفعّل — أضف مفاتيح OAuth في `.env`.")
+        return
+
+    if OAUTH_STATE_SESSION_KEY not in st.session_state:
+        st.session_state[OAUTH_STATE_SESSION_KEY] = new_oauth_state()
+    state = st.session_state[OAUTH_STATE_SESSION_KEY]
+    try:
+        auth_url = build_google_auth_url(state=state)
+    except Exception as exc:
+        st.warning(str(exc))
+        return
+
+    st.link_button(
+        "تسجيل الدخول عبر Google",
+        auth_url,
+        use_container_width=True,
+        type="secondary",
+    )
+
+
 def render_login_page() -> None:
     st.title("تسجيل الدخول")
     st.caption("سجّل دخولك للوصول إلى وكيل البحث عن الوظائف")
+
+    _render_google_button()
+    st.divider()
 
     tab_login, tab_signup = st.tabs(["تسجيل الدخول", "إنشاء حساب"])
 
@@ -104,6 +180,10 @@ docker compose up -d postgres
         st.error(f"تعذر الاتصال بقاعدة البيانات: {exc}")
         st.stop()
         return False
+
+    # Handle Google redirect before the normal session check.
+    if _handle_google_oauth_callback():
+        st.rerun()
 
     ensure_auth_session()
     if is_authenticated():

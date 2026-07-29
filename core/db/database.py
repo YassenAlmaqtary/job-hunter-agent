@@ -81,6 +81,24 @@ def ensure_schema() -> None:
         # Optional: keeps compatibility if other tools still rely on gen_random_uuid().
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
         Base.metadata.create_all(bind=conn)
+        # Lightweight migrations for existing deployments (create_all does not ALTER).
+        conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(32) NOT NULL DEFAULT 'password'"))
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint WHERE conname = 'users_google_sub_key'
+                    ) THEN
+                        ALTER TABLE users ADD CONSTRAINT users_google_sub_key UNIQUE (google_sub);
+                    END IF;
+                END $$;
+                """
+            )
+        )
     _SCHEMA_BOOTSTRAPPED = True
 
 
