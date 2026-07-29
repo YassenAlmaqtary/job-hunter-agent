@@ -23,11 +23,6 @@ def test_hash_and_verify_password_roundtrip():
 
 def test_sign_up_requires_username(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost/db")
-
-    def fake_fetch_one(query, params=()):
-        return None
-
-    monkeypatch.setattr(auth, "fetch_one", fake_fetch_one)
     ok, message = auth.sign_up(email="a@b.com", password="secret123", username="")
     assert ok is False
     assert "اسم المستخدم" in message
@@ -35,7 +30,22 @@ def test_sign_up_requires_username(monkeypatch):
 
 def test_sign_up_rejects_duplicate_email(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost/db")
-    monkeypatch.setattr(auth, "fetch_one", lambda q, p=(): {"id": "1"})
+
+    class _FakeScalarResult:
+        def __init__(self, value):
+            self._value = value
+
+    class _FakeSession:
+        def scalar(self, stmt):  # noqa: ARG002
+            return object()  # truthy → email already exists
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(auth, "session_scope", lambda: _FakeSession())
     ok, message = auth.sign_up(email="a@b.com", password="secret123", username="yassen")
     assert ok is False
     assert "مسجّل" in message
@@ -43,7 +53,18 @@ def test_sign_up_rejects_duplicate_email(monkeypatch):
 
 def test_sign_in_invalid_credentials(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost/db")
-    monkeypatch.setattr(auth, "fetch_one", lambda q, p=(): None)
+
+    class _FakeSession:
+        def scalar(self, stmt):  # noqa: ARG002
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(auth, "session_scope", lambda: _FakeSession())
     ok, message = auth.sign_in(email="a@b.com", password="secret123")
     assert ok is False
     assert "غير صحيحة" in message
@@ -56,8 +77,10 @@ def test_new_graph_thread_id_format():
 
 def test_database_configured(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    from core.db.database import database_configured
+    from core.db.database import database_configured, database_url, reset_engine_for_tests
 
+    reset_engine_for_tests()
     assert database_configured() is False
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/db")
     assert database_configured() is True
+    assert database_url().startswith("postgresql+psycopg://")

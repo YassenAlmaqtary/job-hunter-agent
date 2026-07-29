@@ -1,9 +1,9 @@
 """
-PostgreSQL-backed authentication service.
+PostgreSQL-backed authentication service (SQLAlchemy ORM).
 
 EN: Users and server-side sessions live in Postgres; agent runs require a valid session.
     Streamlit login UI lives in ``app.auth_ui`` — this module is the domain logic.
-AR: منطق المصادقة والجلسات؛ واجهة الدخول في ``app.auth_ui``.
+AR: منطق المصادقة والجلسات عبر ORM؛ واجهة الدخول في ``app.auth_ui``.
 """
 
 from __future__ import annotations
@@ -18,14 +18,10 @@ from typing import Any
 
 import bcrypt
 import streamlit as st
+from sqlalchemy import select
 
-from core.db.database import (
-    database_configured,
-    ensure_schema,
-    execute,
-    execute_returning,
-    fetch_one,
-)
+from core.db.database import database_configured, ensure_schema, session_scope
+from core.db.models import AgentRun, User, UserSession
 
 _SESSION_TOKEN_KEY = "auth_session_token"
 _SESSION_USER_KEY = "auth_user"
@@ -69,6 +65,26 @@ def _new_graph_thread_id(user_id: str) -> str:
     return f"{user_id}:{uuid.uuid4()}"
 
 
+def _user_to_dict(user: User) -> dict[str, Any]:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "created_at": user.created_at,
+    }
+
+
+def _session_to_dict(row: UserSession) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "graph_thread_id": row.graph_thread_id,
+        "expires_at": row.expires_at,
+        "created_at": row.created_at,
+        "last_seen_at": row.last_seen_at,
+    }
+
+
 def _store_browser_session(*, token: str, user: dict[str, Any], session_row: dict[str, Any]) -> None:
     st.session_state[_SESSION_TOKEN_KEY] = token
     st.session_state[_SESSION_USER_KEY] = {
@@ -93,47 +109,45 @@ def _create_db_session(*, user_id: str) -> tuple[str, dict[str, Any]]:
     token_hash = _hash_token(token)
     graph_thread_id = _new_graph_thread_id(user_id)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=_session_ttl_hours())
-    row = execute_returning(
-        """
-        INSERT INTO user_sessions (user_id, token_hash, graph_thread_id, expires_at)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id, user_id, graph_thread_id, expires_at, created_at, last_seen_at
-        """,
-        (user_id, token_hash, graph_thread_id, expires_at),
-    )
-    if not row:
-        raise RuntimeError("تعذر إنشاء جلسة المستخدم.")
-    return token, row
+    with session_scope() as db:
+        row = UserSession(
+            user_id=uuid.UUID(str(user_id)),
+            token_hash=token_hash,
+            graph_thread_id=graph_thread_id,
+            expires_at=expires_at,
+        )
+        db.add(row)
+        db.flush()
+        payload = _session_to_dict(row)
+    return token, payload
 
 
 def _load_session_from_token(token: str) -> dict[str, Any] | None:
     if not token:
         return None
-    row = fetch_one(
-        """
-        SELECT
-            s.id AS session_id,
-            s.graph_thread_id,
-            s.expires_at,
-            s.last_seen_at,
-            u.id AS user_id,
-            u.email,
-            u.username
-        FROM user_sessions s
-        JOIN users u ON u.id = s.user_id
-        WHERE s.token_hash = %s
-          AND s.expires_at > NOW()
-        """,
-        (_hash_token(token),),
-    )
-    if not row:
-        return None
-
-    execute(
-        "UPDATE user_sessions SET last_seen_at = NOW() WHERE id = %s",
-        (row["session_id"],),
-    )
-    return row
+    token_hash = _hash_token(token)
+    now = datetime.now(timezone.utc)
+    with session_scope() as db:
+        stmt = (
+            select(UserSession, User)
+            .join(User, User.id == UserSession.user_id)
+            .where(UserSession.token_hash == token_hash, UserSession.expires_at > now)
+        )
+        result = db.execute(stmt).first()
+        if not result:
+            return None
+        session_row, user = result
+        session_row.last_seen_at = now
+        db.flush()
+        return {
+            "session_id": session_row.id,
+            "graph_thread_id": session_row.graph_thread_id,
+            "expires_at": session_row.expires_at,
+            "last_seen_at": session_row.last_seen_at,
+            "user_id": user.id,
+            "email": user.email,
+            "username": user.username,
+        }
 
 
 def ensure_auth_session() -> None:
@@ -204,10 +218,13 @@ def reset_graph_thread() -> str:
         raise PermissionError("يجب تسجيل الدخول لتشغيل الوكيل.")
 
     graph_thread_id = _new_graph_thread_id(user_id)
-    execute(
-        "UPDATE user_sessions SET graph_thread_id = %s, last_seen_at = NOW() WHERE id = %s AND user_id = %s",
-        (graph_thread_id, session_id, user_id),
-    )
+    with session_scope() as db:
+        row = db.get(UserSession, uuid.UUID(str(session_id)))
+        if row is None or str(row.user_id) != str(user_id):
+            raise PermissionError("جلسة الوكيل غير صالحة. أعد تسجيل الدخول.")
+        row.graph_thread_id = graph_thread_id
+        row.last_seen_at = datetime.now(timezone.utc)
+
     meta = st.session_state.get(_SESSION_META_KEY)
     if isinstance(meta, dict):
         meta["graph_thread_id"] = graph_thread_id
@@ -237,24 +254,23 @@ def sign_up(*, email: str, password: str, username: str) -> tuple[bool, str]:
     if len(password_clean) < 6:
         return False, "كلمة المرور يجب أن تكون 6 أحرف على الأقل."
 
-    if fetch_one("SELECT id FROM users WHERE email = %s", (email_clean,)):
-        return False, "هذا البريد مسجّل مسبقاً."
-    if fetch_one("SELECT id FROM users WHERE username = %s", (username_clean,)):
-        return False, "اسم المستخدم مستخدم مسبقاً."
+    with session_scope() as db:
+        if db.scalar(select(User.id).where(User.email == email_clean)):
+            return False, "هذا البريد مسجّل مسبقاً."
+        if db.scalar(select(User.id).where(User.username == username_clean)):
+            return False, "اسم المستخدم مستخدم مسبقاً."
 
-    user = execute_returning(
-        """
-        INSERT INTO users (email, username, password_hash)
-        VALUES (%s, %s, %s)
-        RETURNING id, email, username, created_at
-        """,
-        (email_clean, username_clean, _hash_password(password_clean)),
-    )
-    if not user:
-        return False, "تعذر إنشاء الحساب."
+        user = User(
+            email=email_clean,
+            username=username_clean,
+            password_hash=_hash_password(password_clean),
+        )
+        db.add(user)
+        db.flush()
+        user_payload = _user_to_dict(user)
 
-    token, session_row = _create_db_session(user_id=str(user["id"]))
-    _store_browser_session(token=token, user=user, session_row=session_row)
+    token, session_row = _create_db_session(user_id=str(user_payload["id"]))
+    _store_browser_session(token=token, user=user_payload, session_row=session_row)
     st.session_state["graph_thread_id"] = session_row["graph_thread_id"]
     return True, "تم إنشاء الحساب وتسجيل الدخول."
 
@@ -265,19 +281,18 @@ def sign_in(*, email: str, password: str) -> tuple[bool, str]:
     if not email_clean or not password_clean:
         return False, "يرجى إدخال البريد الإلكتروني وكلمة المرور."
 
-    user = fetch_one(
-        "SELECT id, email, username, password_hash FROM users WHERE email = %s",
-        (email_clean,),
-    )
-    if not user or not _verify_password(password_clean, user["password_hash"]):
-        return False, "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+    with session_scope() as db:
+        user = db.scalar(select(User).where(User.email == email_clean))
+        if user is None or not _verify_password(password_clean, user.password_hash):
+            return False, "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+        user_payload = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+        }
 
-    token, session_row = _create_db_session(user_id=str(user["id"]))
-    _store_browser_session(
-        token=token,
-        user={"id": user["id"], "email": user["email"], "username": user["username"]},
-        session_row=session_row,
-    )
+    token, session_row = _create_db_session(user_id=str(user_payload["id"]))
+    _store_browser_session(token=token, user=user_payload, session_row=session_row)
     st.session_state["graph_thread_id"] = session_row["graph_thread_id"]
     return True, "تم تسجيل الدخول بنجاح."
 
@@ -285,7 +300,11 @@ def sign_in(*, email: str, password: str) -> tuple[bool, str]:
 def sign_out() -> None:
     token = st.session_state.get(_SESSION_TOKEN_KEY)
     if isinstance(token, str) and token:
-        execute("DELETE FROM user_sessions WHERE token_hash = %s", (_hash_token(token),))
+        token_hash = _hash_token(token)
+        with session_scope() as db:
+            row = db.scalar(select(UserSession).where(UserSession.token_hash == token_hash))
+            if row is not None:
+                db.delete(row)
     _clear_browser_session()
 
 
@@ -294,13 +313,15 @@ def record_agent_run(*, job_title: str, status: str = "completed") -> None:
     session_id = get_session_id()
     if not user_id or not session_id:
         return
-    execute(
-        """
-        INSERT INTO agent_runs (user_id, session_id, job_title, status)
-        VALUES (%s, %s, %s, %s)
-        """,
-        (user_id, session_id, job_title.strip(), status),
-    )
+    with session_scope() as db:
+        db.add(
+            AgentRun(
+                user_id=uuid.UUID(str(user_id)),
+                session_id=uuid.UUID(str(session_id)),
+                job_title=job_title.strip(),
+                status=status,
+            )
+        )
 
 
 def require_authenticated_for_agent() -> None:

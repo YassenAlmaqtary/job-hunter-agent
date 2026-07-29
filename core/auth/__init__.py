@@ -1,4 +1,4 @@
-"""Auth service — signup, signin, sessions, agent-run recording."""
+from __future__ import annotations
 
 from core.auth import service as _service
 from core.auth.service import (  # noqa: F401 — re-export for `from core import auth`
@@ -20,8 +20,6 @@ from core.auth.service import (  # noqa: F401 — re-export for `from core impor
     sign_up,
 )
 
-# Tests monkeypatch these on `core.auth`; expose the same names used by service.
-fetch_one = _service.fetch_one
 _hash_password = _service._hash_password
 _verify_password = _service._verify_password
 _new_graph_thread_id = _service._new_graph_thread_id
@@ -31,7 +29,6 @@ __all__ = [
     "auth_disabled",
     "auth_required",
     "ensure_auth_session",
-    "fetch_one",
     "get_current_user",
     "get_current_user_id",
     "get_display_name",
